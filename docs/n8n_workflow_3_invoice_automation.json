@@ -1,0 +1,76 @@
+{
+  "name": "VendorBridge - Invoice Email (Gmail)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "po-approved",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "wh-po",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [240, 300],
+      "webhookId": "po-approved"
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/purchase_orders?id=eq.{{ $json.po_id }}&select=*,vendors(company_name,email)",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "={{ $env.SUPABASE_ANON_KEY }}" },
+            { "name": "Authorization", "value": "Bearer {{ $env.SUPABASE_SERVICE_KEY }}" }
+          ]
+        }
+      },
+      "id": "fetch-po",
+      "name": "Get PO Details",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $json[0].vendors.email }}",
+        "subject": "Purchase Order {{ $json[0].po_number }} Approved - VendorBridge",
+        "message": "<div style='font-family:sans-serif;max-width:600px;margin:0 auto'><div style='background:#16a34a;padding:24px;border-radius:8px 8px 0 0'><h1 style='color:white;margin:0;font-size:20px'>✅ Purchase Order Approved</h1></div><div style='background:white;padding:32px;border:1px solid #e2e8f0;border-radius:0 0 8px 8px'><p style='font-size:16px;font-weight:700;color:#0f172a'>Hello {{ $json[0].vendors.company_name }},</p><p style='color:#475569'>Your Purchase Order has been approved. Please proceed with the delivery.</p><table style='width:100%;border-collapse:collapse;margin:16px 0'><tr style='background:#f8fafc'><td style='padding:12px;border:1px solid #e2e8f0;font-weight:600'>PO Number</td><td style='padding:12px;border:1px solid #e2e8f0'>{{ $json[0].po_number }}</td></tr><tr><td style='padding:12px;border:1px solid #e2e8f0;font-weight:600'>Amount</td><td style='padding:12px;border:1px solid #e2e8f0;font-weight:700;color:#16a34a'>₹{{ $json[0].total_amount }}</td></tr></table></div></div>",
+        "options": {}
+      },
+      "id": "send-gmail",
+      "name": "Gmail",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2,
+      "position": [680, 300],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "REPLACE_WITH_YOUR_GMAIL_CREDENTIAL_ID",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={ \"success\": true, \"po_number\": \"{{ $('Get PO Details').first().json[0].po_number }}\" }"
+      },
+      "id": "respond",
+      "name": "Respond OK",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [900, 300]
+    }
+  ],
+  "connections": {
+    "Webhook": { "main": [[{ "node": "Get PO Details", "type": "main", "index": 0 }]] },
+    "Get PO Details": { "main": [[{ "node": "Gmail", "type": "main", "index": 0 }]] },
+    "Gmail": { "main": [[{ "node": "Respond OK", "type": "main", "index": 0 }]] }
+  },
+  "settings": { "executionOrder": "v1" },
+  "tags": [{ "name": "vendorbridge" }]
+}
