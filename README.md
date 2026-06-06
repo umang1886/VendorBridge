@@ -1,4 +1,4 @@
-<div align="center">
+uu<div align="center">
 
 # 🚀 VendorBridge
 
@@ -355,8 +355,7 @@ AI-powered procurement support chatbot.
 
 ## Backend
 
-- Odoo
-- Python
+- Flask (Python)
 
 ## Database
 
