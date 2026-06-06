@@ -26,6 +26,29 @@ export default function ComparisonPage({ params }: { params: Promise<{ rfqId: st
   const [loading, setLoading] = useState(true);
   const [approving, setApproving] = useState(false);
   const [poCreated, setPoCreated] = useState(false);
+  const [analyzing, setAnalyzing] = useState(false);
+
+  const runAnalysis = async () => {
+    setAnalyzing(true);
+    try {
+      const res = await fetch('/api/analyze-quotations', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ rfq_id: rfqId }),
+      });
+      const result = await res.json();
+      if (res.ok) {
+        const aiData = await getAIAnalysisByRFQ(rfqId);
+        setAiAnalysis(aiData);
+      } else {
+        alert('Analysis failed: ' + (result.error || result.message || 'Unknown error'));
+      }
+    } catch (err: any) {
+      alert('Analysis failed: ' + err.message);
+    } finally {
+      setAnalyzing(false);
+    }
+  };
 
   useEffect(() => {
     Promise.all([
@@ -65,7 +88,27 @@ export default function ComparisonPage({ params }: { params: Promise<{ rfqId: st
           <h1 style={{ fontSize: 22, fontWeight: 800, marginBottom: 4 }}>Quotation Comparison</h1>
           <p style={{ color: "#64748b", fontSize: 14 }}>{rfq.title} · {quotations.length} quotations</p>
         </div>
+        <button
+          onClick={runAnalysis}
+          disabled={analyzing || quotations.length === 0}
+          className="btn btn-primary"
+          style={{ display: "flex", alignItems: "center", gap: 6 }}
+        >
+          {analyzing ? <Loader2 size={14} className="animate-spin" /> : <Zap size={14} />}
+          {analyzing ? 'Analyzing…' : 'Run Analysis'}
+        </button>
       </div>
+
+      {/* No Analysis Banner */}
+      {!aiAnalysis && quotations.length > 0 && (
+        <div style={{ background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 12, padding: 16, marginBottom: 24, display: 'flex', alignItems: 'center', gap: 12 }}>
+          <Zap size={20} color="#d97706" />
+          <div style={{ flex: 1 }}>
+            <div style={{ fontWeight: 700, color: '#92400e', fontSize: 14 }}>No analysis yet</div>
+            <div style={{ color: '#b45309', fontSize: 13 }}>Click <strong>Run Analysis</strong> above to automatically score and rank all quotations.</div>
+          </div>
+        </div>
+      )}
 
       {/* AI Recommendation Banner */}
       {aiAnalysis && (

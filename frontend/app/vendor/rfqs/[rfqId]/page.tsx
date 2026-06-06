@@ -105,28 +105,22 @@ export default function VendorRFQDetailPage({ params }: { params: Promise<{ rfqI
         items
       });
 
-      // TRIGGER n8n WEBHOOK FOR AI ANALYSIS
+      // TRIGGER INTERNAL ANALYSIS (replaces n8n Workflow 2)
       try {
-        const webhookUrl = 'https://krish240724.app.n8n.cloud/webhook/trigger-ai-analysis';
-        console.log("Sending AI webhook to:", webhookUrl);
-        const whRes = await fetch(webhookUrl, {
+        const analysisRes = await fetch('/api/analyze-quotations', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ 
-            rfq_id: rfq.id,
-            has_file: isFileUpload,
-            file_name: uploadedFile?.name,
-            file_data: fileBase64,
-            mime_type: uploadedFile?.type
-          })
+          body: JSON.stringify({ rfq_id: rfq.id })
         });
-        if (!whRes.ok) {
-          console.error("n8n webhook failed with status:", whRes.status, await whRes.text());
+        if (!analysisRes.ok) {
+          const errText = await analysisRes.text();
+          console.warn('Analysis API failed:', errText);
         } else {
-          console.log("n8n webhook succeeded!");
+          const result = await analysisRes.json();
+          console.log('Analysis complete:', result.recommended_vendor, `(${result.confidence_score}% confidence)`);
         }
-      } catch (webhookErr) {
-        console.warn("n8n webhook failed, but quotation saved:", webhookErr);
+      } catch (analysisErr) {
+        console.warn('Analysis failed, but quotation saved:', analysisErr);
       }
 
       setSuccess(true);
