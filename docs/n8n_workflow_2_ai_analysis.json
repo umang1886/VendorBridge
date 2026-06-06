@@ -18,7 +18,7 @@
     {
       "parameters": {
         "method": "GET",
-        "url": "={{ $env.SUPABASE_URL }}/rest/v1/quotations?rfq_id=eq.{{ $json.rfq_id }}&select=*,vendors(id,company_name,rating)",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/quotations?rfq_id=eq.{{ $json.body?.rfq_id || $json.rfq_id }}&select=*,vendors(id,company_name,rating)",
         "authentication": "genericCredentialType",
         "genericAuthType": "httpHeaderAuth",
         "sendHeaders": true,
@@ -37,7 +37,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const quotations = $input.all().map(item => item.json);\nif (!quotations || quotations.length === 0) {\n  return [{ json: { error: 'No quotations found', rfq_id: $('Webhook').first().json.rfq_id } }];\n}\n\nconst prices = quotations.map(q => parseFloat(q.total_amount));\nconst deliveries = quotations.map(q => parseInt(q.delivery_days));\nconst minPrice = Math.min(...prices);\nconst minDelivery = Math.min(...deliveries);\n\nconst scored = quotations.map(q => {\n  const priceScore = (minPrice / parseFloat(q.total_amount)) * 100;\n  const deliveryScore = (minDelivery / parseInt(q.delivery_days)) * 100;\n  const ratingScore = (parseFloat(q.vendors?.rating || 3) / 5) * 100;\n  const composite = (priceScore * 0.40) + (deliveryScore * 0.25) + (ratingScore * 0.35);\n  return {\n    vendor_id: q.vendor_id,\n    vendor_name: q.vendors?.company_name || 'Unknown',\n    total_amount: parseFloat(q.total_amount),\n    delivery_days: parseInt(q.delivery_days),\n    rating: parseFloat(q.vendors?.rating || 3),\n    price_score: Math.round(priceScore * 100) / 100,\n    delivery_score: Math.round(deliveryScore * 100) / 100,\n    rating_score: Math.round(ratingScore * 100) / 100,\n    composite_score: Math.round(composite * 100) / 100\n  };\n}).sort((a, b) => b.composite_score - a.composite_score);\n\nreturn [{ json: { rfq_id: $('Webhook').first().json.rfq_id, scored } }];"
+        "jsCode": "const quotations = $input.all().map(item => item.json);\nconst webhookData = $('Webhook').first().json;\nconst rfqId = webhookData.body?.rfq_id || webhookData.rfq_id;\n\nif (!quotations || quotations.length === 0) {\n  return [{ json: { error: 'No quotations found', rfq_id: rfqId } }];\n}\n\nconst prices = quotations.map(q => parseFloat(q.total_amount) || 0).filter(p => p > 0);\nconst deliveries = quotations.map(q => parseInt(q.delivery_days) || 0).filter(d => d > 0);\nconst minPrice = prices.length > 0 ? Math.min(...prices) : 1;\nconst minDelivery = deliveries.length > 0 ? Math.min(...deliveries) : 1;\n\nconst scored = quotations.map(q => {\n  const pAmt = parseFloat(q.total_amount) || 0;\n  const dDays = parseInt(q.delivery_days) || 0;\n  const priceScore = pAmt > 0 ? (minPrice / pAmt) * 100 : 0;\n  const deliveryScore = dDays > 0 ? (minDelivery / dDays) * 100 : 0;\n  const ratingScore = (parseFloat(q.vendors?.rating || 3) / 5) * 100;\n  const composite = (priceScore * 0.40) + (deliveryScore * 0.25) + (ratingScore * 0.35);\n  return {\n    vendor_id: q.vendor_id,\n    vendor_name: q.vendors?.company_name || 'Unknown',\n    total_amount: pAmt,\n    delivery_days: dDays,\n    rating: parseFloat(q.vendors?.rating || 3),\n    price_score: Math.round(priceScore * 100) / 100,\n    delivery_score: Math.round(deliveryScore * 100) / 100,\n    rating_score: Math.round(ratingScore * 100) / 100,\n    composite_score: Math.round(composite * 100) / 100 || 0\n  };\n}).sort((a, b) => b.composite_score - a.composite_score);\n\nreturn [{ json: { rfq_id: rfqId, scored } }];"
       },
       "id": "score",
       "name": "Calculate Scores",
@@ -47,28 +47,23 @@
     },
     {
       "parameters": {
-        "method": "POST",
-        "url": "https://api.openai.com/v1/chat/completions",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            { "name": "Content-Type", "value": "application/json" },
-            { "name": "Authorization", "value": "Bearer {{ $env.OPENAI_API_KEY }}" }
-          ]
-        },
-        "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={\n  \"model\": \"gpt-4o-mini\",\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"You are a procurement analyst. Analyze these vendor quotations and give a 2-3 sentence recommendation.\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": \"Ranked quotations (by composite score — Price 40%, Delivery 25%, Rating 35%):\\n{{ JSON.stringify($json.scored) }}\\n\\n1. Who is the best vendor and why?\\n2. Key trade-offs between top 2?\\n3. Any risk factors?\\n\\nBe direct. Return ONLY the recommendation text.\"\n    }\n  ],\n  \"temperature\": 0.2\n}"
+        "resource": "chat",
+        "operation": "create",
+        "model": "gpt-4o-mini",
+        "prompt": "You are a procurement analyst. Analyze these vendor quotations and give a 2-3 sentence recommendation.\n\nRanked quotations (by composite score — Price 40%, Delivery 25%, Rating 35%):\n{{ JSON.stringify($json.scored) }}\n\n1. Who is the best vendor and why?\n2. Key trade-offs between top 2?\n3. Any risk factors?\n\nBe direct. Return ONLY the recommendation text.",
+        "options": {
+          "temperature": 0.2
+        }
       },
       "id": "openai",
       "name": "OpenAI API",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 3,
+      "type": "n8n-nodes-base.openAi",
+      "typeVersion": 1,
       "position": [900, 300]
     },
     {
       "parameters": {
-        "jsCode": "const aiResponse = $('OpenAI API').first().json;\nconst scores = $('Calculate Scores').first().json;\nconst rfqId = scores.rfq_id;\n\nconst aiSummary = aiResponse.choices?.[0]?.message?.content || 'AI analysis unavailable';\n\nreturn [{\n  json: {\n    rfq_id: rfqId,\n    ranked_quotations: JSON.stringify(scores.scored),\n    ai_summary: aiSummary,\n    recommended_vendor_id: scores.scored[0]?.vendor_id,\n    confidence_score: 92\n  }\n}];"
+        "jsCode": "const aiResponse = $('OpenAI API').first().json;\nconst scores = $('Calculate Scores').first().json;\nconst rfqId = scores.rfq_id;\n\nconst aiSummary = aiResponse.choices?.[0]?.message?.content || aiResponse.message?.content || aiResponse.text || aiResponse.content || JSON.stringify(aiResponse);\n\nreturn [{\n  json: {\n    rfq_id: rfqId,\n    ranked_quotations: JSON.stringify(scores.scored),\n    ai_summary: aiSummary,\n    recommended_vendor_id: scores.scored[0]?.vendor_id,\n    confidence_score: 92\n  }\n}];"
       },
       "id": "parse",
       "name": "Parse Response",
@@ -93,7 +88,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={\n  \"rfq_id\": \"{{ $json.rfq_id }}\",\n  \"ranked_quotations\": {{ $json.ranked_quotations }},\n  \"ai_summary\": {{ JSON.stringify($json.ai_summary) }},\n  \"recommended_vendor_id\": \"{{ $json.recommended_vendor_id }}\",\n  \"confidence_score\": {{ $json.confidence_score }}\n}"
+        "jsonBody": "={\n  \"rfq_id\": \"{{ $('Webhook').first().json.body?.rfq_id || $('Webhook').first().json.rfq_id }}\",\n  \"ranked_quotations\": {{ $json.ranked_quotations }},\n  \"ai_summary\": {{ JSON.stringify($json.ai_summary) }},\n  \"recommended_vendor_id\": \"{{ $json.recommended_vendor_id }}\",\n  \"confidence_score\": {{ $json.confidence_score }}\n}"
       },
       "id": "save",
       "name": "Save to Supabase",

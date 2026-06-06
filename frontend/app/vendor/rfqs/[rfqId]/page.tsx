@@ -69,8 +69,10 @@ export default function VendorRFQDetailPage({ params }: { params: Promise<{ rfqI
   };
 
   const handleSubmit = async () => {
-    const totalAmount = calculateTotal();
-    if (totalAmount <= 0) {
+    const isFileUpload = !!uploadedFile;
+    const computedTotalAmount = calculateTotal();
+
+    if (!isFileUpload && computedTotalAmount <= 0) {
       setError("Please enter unit prices for all items.");
       return;
     }
@@ -78,7 +80,7 @@ export default function VendorRFQDetailPage({ params }: { params: Promise<{ rfqI
     setSaving(true);
     setError("");
 
-      const isFileUpload = !!uploadedFile;
+    try {
       const totalAmount = isFileUpload ? 0 : rfq.rfq_items.reduce((sum: number, item: any) => sum + (Number(prices[item.id]) * item.quantity || 0), 0);
 
       const items = isFileUpload ? [] : rfq.rfq_items.map((item: any) => {
@@ -105,7 +107,9 @@ export default function VendorRFQDetailPage({ params }: { params: Promise<{ rfqI
 
       // TRIGGER n8n WEBHOOK FOR AI ANALYSIS
       try {
-        await fetch(process.env.NEXT_PUBLIC_N8N_WEBHOOK_URL_2 || 'https://krish240724.app.n8n.cloud/webhook-test/trigger-ai-analysis', {
+        const webhookUrl = 'https://krish240724.app.n8n.cloud/webhook/trigger-ai-analysis';
+        console.log("Sending AI webhook to:", webhookUrl);
+        const whRes = await fetch(webhookUrl, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ 
@@ -116,6 +120,11 @@ export default function VendorRFQDetailPage({ params }: { params: Promise<{ rfqI
             mime_type: uploadedFile?.type
           })
         });
+        if (!whRes.ok) {
+          console.error("n8n webhook failed with status:", whRes.status, await whRes.text());
+        } else {
+          console.log("n8n webhook succeeded!");
+        }
       } catch (webhookErr) {
         console.warn("n8n webhook failed, but quotation saved:", webhookErr);
       }
@@ -235,4 +244,70 @@ export default function VendorRFQDetailPage({ params }: { params: Promise<{ rfqI
                           )}
                         </td>
                         <td style={{ fontWeight: 700, color: "#0f172a" }}>
-                          {total > 0 ?
+                          {total > 0 ? `₹${total.toLocaleString()}` : "₹0"}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+                <tfoot>
+                  <tr style={{ background: "#f8fafc" }}>
+                    <td colSpan={3} style={{ textAlign: "right", fontWeight: 700 }}>Grand Total:</td>
+                    <td style={{ fontWeight: 800, fontSize: 16, color: "#16a34a" }}>
+                      ₹{calculateTotal().toLocaleString()}
+                    </td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+          <div className="card">
+            <div className="card-header"><div style={{ fontWeight: 700 }}>Terms & Conditions</div></div>
+            <div className="card-body" style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+              <div>
+                <label style={{ fontSize: 12, fontWeight: 600, color: "#475569", display: "block", marginBottom: 5 }}>Delivery Days *</label>
+                <input 
+                  type="number" 
+                  className="input" 
+                  value={deliveryDays} 
+                  onChange={e => setDeliveryDays(e.target.value)} 
+                  disabled={alreadySubmitted}
+                />
+              </div>
+              <div>
+                <label style={{ fontSize: 12, fontWeight: 600, color: "#475569", display: "block", marginBottom: 5 }}>Payment Terms</label>
+                <select className="select" style={{ width: "100%" }} value={paymentTerms} onChange={e => setPaymentTerms(e.target.value)} disabled={alreadySubmitted}>
+                  <option value="Net 30">Net 30 Days</option>
+                  <option value="Net 45">Net 45 Days</option>
+                  <option value="Net 60">Net 60 Days</option>
+                  <option value="Immediate">Immediate / Advance</option>
+                </select>
+              </div>
+              <div>
+                <label style={{ fontSize: 12, fontWeight: 600, color: "#475569", display: "block", marginBottom: 5 }}>Notes / Remarks</label>
+                <textarea className="input" rows={3} placeholder="Any specific conditions..." disabled={alreadySubmitted}></textarea>
+              </div>
+            </div>
+          </div>
+
+          {!alreadySubmitted && rfq.status === "open" && (
+            <div className="card" style={{ padding: 16 }}>
+              <div style={{ display: "flex", justifyContent: "flex-end" }}>
+                <button className="btn btn-primary" onClick={handleSubmit} disabled={saving || (!uploadedFile && rfq.rfq_items.some((i: any) => !prices[i.id]))}>
+                  {saving ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
+                  {saving ? "Submitting..." : "Submit Formal Quotation"}
+                </button>
+              </div>
+              <p style={{ fontSize: 11, color: "#64748b", textAlign: "center", marginTop: 12 }}>
+                By submitting, you agree to the VendorBridge terms and conditions.
+              </p>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}

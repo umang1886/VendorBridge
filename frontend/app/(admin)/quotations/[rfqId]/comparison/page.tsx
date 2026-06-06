@@ -243,7 +243,7 @@ export default function ComparisonPage({ params }: { params: Promise<{ rfqId: st
                         
                         // Trigger Webhook 3
                         try {
-                          await fetch(process.env.NEXT_PUBLIC_N8N_WEBHOOK_URL_3 || 'https://krish240724.app.n8n.cloud/webhook-test/po-approved', {
+                          await fetch('https://krish240724.app.n8n.cloud/webhook/po-approved', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({ po_id: po.id })

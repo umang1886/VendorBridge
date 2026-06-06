@@ -18,7 +18,7 @@
     {
       "parameters": {
         "method": "GET",
-        "url": "={{ $env.SUPABASE_URL }}/rest/v1/purchase_orders?id=eq.{{ $json.po_id }}&select=*,vendors(company_name,email)",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/purchase_orders?id=eq.{{ $json.body.po_id }}&select=*,vendors(company_name,email)",
         "authentication": "genericCredentialType",
         "genericAuthType": "httpHeaderAuth",
         "sendHeaders": true,

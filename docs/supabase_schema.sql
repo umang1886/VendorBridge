@@ -92,6 +92,7 @@ CREATE TABLE IF NOT EXISTS quotations (
     delivery_days INTEGER,
     payment_terms TEXT,
     notes TEXT,
+    attachment_name TEXT,
     submitted_at TIMESTAMPTZ DEFAULT NOW(),
     UNIQUE(rfq_id, vendor_id)
 );

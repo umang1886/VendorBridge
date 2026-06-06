@@ -144,7 +144,8 @@ export async function getVendorRFQs(vendorId: string) {
 }
 
 export async function submitQuotation(quotation: {
-  rfq_id: string; vendor_id: string; total_amount: number; delivery_days: number; items: any[];
+  rfq_id: string; vendor_id: string; total_amount: number; delivery_days: number; 
+  payment_terms?: string; notes?: string; items?: any[];
 }) {
   // Check if quotation already exists
   const { data: existing } = await supabase.from('quotations').select('id').eq('rfq_id', quotation.rfq_id).eq('vendor_id', quotation.vendor_id).maybeSingle();
@@ -155,11 +156,13 @@ export async function submitQuotation(quotation: {
     vendor_id: quotation.vendor_id,
     total_amount: quotation.total_amount,
     delivery_days: quotation.delivery_days,
+    payment_terms: quotation.payment_terms,
+    notes: quotation.notes,
     status: 'submitted'
   }).select().single();
   if (error) throw error;
 
-  if (quotation.items.length > 0) {
+  if (quotation.items && quotation.items.length > 0) {
     const { error: itemsError } = await supabase.from('quotation_items').insert(
       quotation.items.map(item => ({ ...item, quotation_id: newQuote.id }))
     );

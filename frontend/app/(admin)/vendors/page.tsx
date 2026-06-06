@@ -217,4 +217,8 @@ export default function VendorsPage() {
               </div>
             </div>
           </div>
-        </
+        </div>
+      )}
+    </div>
+  );
+}

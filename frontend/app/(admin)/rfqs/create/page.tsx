@@ -47,11 +47,18 @@ export default function CreateRFQPage() {
       // Trigger n8n webhook for email notification if published
       if (status === "open") {
         try {
-          await fetch(process.env.NEXT_PUBLIC_N8N_WEBHOOK_URL_1 || 'https://krish240724.app.n8n.cloud/webhook-test/rfq-published', {
+          const webhookUrl = 'https://krish240724.app.n8n.cloud/webhook/rfq-published';
+          console.log("Sending RFQ webhook to:", webhookUrl);
+          const whRes = await fetch(webhookUrl, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ rfq_id: rfq.id, title, deadline })
           });
+          if (!whRes.ok) {
+            console.error("n8n webhook 1 failed with status:", whRes.status, await whRes.text());
+          } else {
+            console.log("n8n webhook 1 succeeded!");
+          }
         } catch (webhookErr) {
           console.warn("n8n webhook failed, but RFQ saved:", webhookErr);
         }
